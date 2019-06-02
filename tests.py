@@ -50,7 +50,6 @@ class MaxBatchSizeTester(BaseTester):
     async def _test(self, batch_size: int, utterance: str = 'test') -> Union[bool, int]:
         utterances_ids = [str(u_id) for u_id in range(batch_size)]
         utterances = [utterance] * batch_size
-        results = self._agent(utterances, utterances_ids)
-        print(results)
+        _ = self._agent(utterances, utterances_ids)
 
         return True
