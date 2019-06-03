@@ -74,6 +74,7 @@ def run_tests():
 
     for test in test_config:
         print(f'Starting {test["test_name"]}')
+        logger.info(f'Starting {test["test_name"]}')
 
         batch_size = test['test_params']['batch_size']
         utt_length = test['test_params']['utt_length']
@@ -99,6 +100,7 @@ def run_tests():
             logger.info(report)
 
             if result[0] / test_attempt[2] > MAX_FAULTS_RATE:
+                logger.info(f'Interrupted {test["test_name"]}')
                 break
 
         print(f'Finished{test["test_name"]}')
