@@ -11,7 +11,7 @@ from agent import get_infer_agent
 from test_config import test_config
 
 
-INFER_TIMEOUT_SECS = 600
+MAX_FAULTS_RATE = 0
 
 
 results_dir = Path(__file__).resolve().parent / 'results'
@@ -78,6 +78,7 @@ def run_tests():
         batch_size = test['test_params']['batch_size']
         utt_length = test['test_params']['utt_length']
         infers_num = test['test_params']['infers_num']
+        infer_timeout = test['test_params']['infer_timeout']
 
         batch_size = list(range(batch_size, batch_size + 1, 1)) if isinstance(batch_size, int) else list(batch_size)
         utt_length = list(range(utt_length, utt_length + 1, 1)) if isinstance(utt_length, int) else list(utt_length)
@@ -86,16 +87,19 @@ def run_tests():
         test_grid = [(bs, ul, inum) for bs in batch_size for ul in utt_length for inum in infers_num]
 
         for test_attempt in test_grid:
-            result = run_single_test(test_attempt[0], test_attempt[1], test_attempt[2], INFER_TIMEOUT_SECS)
-            report = 'TEST: {}, batch_size: {}, utt_length: {}, infers_num: {}, AVG_TIME: {}, FAULTS: {}'.format(
+            result = run_single_test(test_attempt[0], test_attempt[1], test_attempt[2], infer_timeout)
+            report = 'TEST {}:: batch_size: {}, utt_length: {}, infers_num: {}, AVG_TIME: {}, FAULTS: {}'.format(
                 test['test_name'],
                 test_attempt[0],
                 test_attempt[1],
                 test_attempt[2],
-                result[0],
-                result[1])
+                result[1],
+                result[0])
 
             logger.info(report)
+
+            if result[0] / test_attempt[2] > MAX_FAULTS_RATE:
+                break
 
         print(f'Finished{test["test_name"]}')
 
