@@ -8,7 +8,7 @@ from pathlib import Path
 from deeppavlov.core.common.paths import _root_path as dp_root_dir
 
 from agent import get_infer_agent
-from test_config import test_config
+from test_config import tests_pipeline
 
 
 MAX_FAULTS_RATE = 0
@@ -72,7 +72,7 @@ def run_tests():
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
-    for test in test_config:
+    for test in tests_pipeline:
         print(f'Starting {test["test_name"]}')
         logger.info(f'Starting {test["test_name"]}')
 
