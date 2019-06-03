@@ -1,15 +1,21 @@
 import shutil
 import asyncio
+import logging
+from datetime import datetime
 from typing import Tuple
 from pathlib import Path
 
 from deeppavlov.core.common.paths import _root_path as dp_root_dir
 
 from agent import get_infer_agent
+from test_config import test_config
 
 
-shutil.copy(Path(__file__).resolve().parent / 'agent_config.yaml',
-            dp_root_dir / 'deeppavlov/core/agent_v2/config.yaml')
+INFER_TIMEOUT_SECS = 600
+
+
+results_dir = Path(__file__).resolve().parent / 'results'
+shutil.copy(Path(__file__).resolve().parent / 'agent_config.yaml', dp_root_dir / 'deeppavlov/core/agent_v2/config.yaml')
 agent_inferer = get_infer_agent()
 
 
@@ -50,3 +56,51 @@ def run_single_test(batch_size: int, utt_length: int = 5, infers_num: int = 1,
     avg_await = -1.0 if faults_num else round(sum(await_times) / len(await_times), 4)
 
     return faults_num, avg_await
+
+
+def run_tests():
+    print('Starting stress test sequence')
+
+    results_dir.mkdir(exist_ok=True)
+    log_file_path = results_dir / f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f')}_test.log"
+
+    logger = logging.getLogger('dp_agent_stress_test')
+    logger.setLevel(logging.INFO)
+    file_handler = logging.FileHandler(log_file_path)
+    file_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s %(message)s')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    for test in test_config:
+        print(f'Starting {test["test_name"]}')
+
+        batch_size = test['test_params']['batch_size']
+        utt_length = test['test_params']['utt_length']
+        infers_num = test['test_params']['infers_num']
+
+        batch_size = list(range(batch_size, batch_size + 1, 1)) if isinstance(batch_size, int) else list(batch_size)
+        utt_length = list(range(utt_length, utt_length + 1, 1)) if isinstance(utt_length, int) else list(utt_length)
+        infers_num = list(range(infers_num, infers_num + 1, 1)) if isinstance(infers_num, int) else list(infers_num)
+
+        test_grid = [(bs, ul, inum) for bs in batch_size for ul in utt_length for inum in infers_num]
+
+        for test_attempt in test_grid:
+            result = run_single_test(test_attempt[0], test_attempt[1], test_attempt[2], INFER_TIMEOUT_SECS)
+            report = 'TEST: {}, batch_size: {}, utt_length: {}, infers_num: {}, AVG_TIME: {}, FAULTS: {}'.format(
+                test['test_name'],
+                test_attempt[0],
+                test_attempt[1],
+                test_attempt[2],
+                result[0],
+                result[1])
+
+            logger.info(report)
+
+        print(f'Finished{test["test_name"]}')
+
+    print('Finished')
+
+
+if __name__ == '__main__':
+    run_tests()
