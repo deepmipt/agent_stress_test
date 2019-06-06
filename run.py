@@ -1,6 +1,8 @@
 import shutil
 import asyncio
 import logging
+from pprint import pprint
+from collections import defaultdict
 from datetime import datetime
 from typing import Tuple
 from pathlib import Path
@@ -20,12 +22,28 @@ agent_inferer = get_infer_agent()
 
 
 class UtteranceGenerator:
-    def __init__(self):
+    def __init__(self) -> None:
         dialogs_path = Path(__file__).resolve().parent / 'dialogs.txt'
-        with dialogs_path.open(dialogs_path, 'r') as f:
-            dialogs_str = f.load()
-            examples = {}
+        with dialogs_path.open('r') as f:
+            dialogs_str: str = f.read()
+            self._examples = defaultdict(set)
 
+            tokens = dialogs_str.replace('\n\n', ' ').replace('\n', ' ').split(' ')
+            replicas = [replica for dialog in dialogs_str.split('\n\n') for replica in dialog.split('\n')]
+            dialogs = [dialog.replace('\n', ' ') for dialog in dialogs_str.split('\n\n')]
+
+            for token in tokens:
+                self._examples[len(token)].add(token)
+
+            for repl in replicas:
+                self._examples[len(repl)].add(repl)
+
+            for dial in dialogs:
+                self._examples[len(dial)].add(dial)
+
+    def __call__(self, symbols_num: int) -> str:
+        utterance = ''
+        pass
 
 
 async def infer_agent(utterances: list, ids: list) -> list:
@@ -118,4 +136,7 @@ def run_tests():
 
 
 if __name__ == '__main__':
-    run_tests()
+    #run_tests()
+    ug = UtteranceGenerator()
+    pprint(ug._examples[1])
+
