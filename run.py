@@ -19,6 +19,15 @@ shutil.copy(Path(__file__).resolve().parent / 'agent_config.yaml', dp_root_dir /
 agent_inferer = get_infer_agent()
 
 
+class UtteranceGenerator:
+    def __init__(self):
+        dialogs_path = Path(__file__).resolve().parent / 'dialogs.txt'
+        with dialogs_path.open(dialogs_path, 'r') as f:
+            dialogs_str = f.load()
+            examples = {}
+
+
+
 async def infer_agent(utterances: list, ids: list) -> list:
     return agent_inferer(utterances, ids)
 
