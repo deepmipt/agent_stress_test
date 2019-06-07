@@ -1,6 +1,9 @@
 import shutil
 import asyncio
 import logging
+import bisect
+import random
+import statistics
 from pprint import pprint
 from collections import defaultdict
 from datetime import datetime
@@ -41,9 +44,29 @@ class UtteranceGenerator:
             for dial in dialogs:
                 self._examples[len(dial)].add(dial)
 
+            for key, value in self._examples.items():
+                self._examples[key] = list(self._examples[key])
+
+            self._indexes = list(self._examples.keys())
+            self._indexes.sort()
+
     def __call__(self, symbols_num: int) -> str:
-        utterance = ''
-        pass
+        i = bisect.bisect_right(self._indexes, symbols_num)
+        substring_symbols_num = self._indexes[i - 1] if i > 0 else 1
+        substring = random.choice(self._examples.get(substring_symbols_num, ['!']))
+        symbols_num_delta = symbols_num - substring_symbols_num
+
+        if symbols_num_delta < 1:
+            result = substring
+        elif symbols_num_delta == 1:
+            result = f'{substring}{self.__call__(symbols_num_delta)}'
+        else:
+            result = f'{substring} {self.__call__(symbols_num_delta - 1)}'
+
+        return result
+
+
+utterance_generator = UtteranceGenerator()
 
 
 async def infer_agent(utterances: list, ids: list) -> list:
@@ -66,23 +89,24 @@ async def infer(utterances: list, ids: list, loop: asyncio.AbstractEventLoop,
 
 
 def run_single_test(batch_size: int, utt_length: int = 5, infers_num: int = 1,
-                    infer_timeout: int = 600) -> Tuple[bool, float]:
+                    infer_timeout: int = 600) -> Tuple[bool, float, float]:
 
     loop = asyncio.get_event_loop()
-
-    utterances = [''.join(['t'] * utt_length)] * batch_size
-    ids = [str(utt_id) for utt_id in range(batch_size)]
-    infers = []
+    results = []
 
     for _ in range(infers_num):
-        infers.append(infer(utterances, ids, loop, infer_timeout))
+        utt_batch = [utterance_generator(utt_length) for _ in range(batch_size)]
+        ids_batch = [str(utt_id) for utt_id in range(batch_size)]
+        results.append(loop.run_until_complete(infer(utt_batch, ids_batch, loop, infer_timeout)))
 
-    results = loop.run_until_complete(asyncio.gather(*infers))
     passed, await_times = list(zip(*results))
     faults_num = passed.count(False)
-    avg_await = -1.0 if faults_num else round(sum(await_times) / len(await_times), 4)
+    await_times = [t for t in await_times if t >= 0]
 
-    return faults_num, avg_await
+    await_avg = statistics.mean(await_times) if await_times else 0
+    await_var = statistics.variance(await_times) if len(await_times) >= 2 else 0
+
+    return faults_num, await_avg, await_var
 
 
 def run_tests():
@@ -116,18 +140,19 @@ def run_tests():
 
         for test_attempt in test_grid:
             result = run_single_test(test_attempt[0], test_attempt[1], test_attempt[2], infer_timeout)
-            report = 'TEST {}:: batch_size: {}, utt_length: {}, infers_num: {}, AVG_TIME: {}, FAULTS: {}'.format(
+            report = '{}:: batch_size: {}, utt_length: {}, infers_num: {}, FAULTS: {}, AVG_TIME: {}, DISP {}'.format(
                 test['test_name'],
                 test_attempt[0],
                 test_attempt[1],
                 test_attempt[2],
+                result[0],
                 result[1],
-                result[0])
+                result[2])
 
             logger.info(report)
 
             if result[0] / test_attempt[2] > MAX_FAULTS_RATE:
-                logger.info(f'Interrupted {test["test_name"]}')
+                logger.info(f'Interrupted {test["test_name"]} with {result[0]} error attempts of {test_attempt[2]}')
                 break
 
         print(f'Finished{test["test_name"]}')
@@ -136,7 +161,5 @@ def run_tests():
 
 
 if __name__ == '__main__':
-    #run_tests()
-    ug = UtteranceGenerator()
-    pprint(ug._examples[1])
+    run_tests()
 
